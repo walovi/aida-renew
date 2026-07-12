@@ -12,10 +12,10 @@ jobs:
 
     steps:
       - name: Checkout public repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Checkout private repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: ${{ github.repository_owner }}/aida_renew_private
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
@@ -35,4 +35,5 @@ jobs:
       - name: Run private script
         env:
           PYTHONIOENCODING: utf-8
-        run: python private/aida-renew.py
+          TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
+        run: python private/aida-renew.py --token "$TOKEN"
