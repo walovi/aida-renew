@@ -5,7 +5,7 @@ on:
 
 permissions:
   contents: read
-  actions: write     # ← 清理 workflow runs 需要这个权限
+  actions: write
 
 jobs:
   cleanup:
@@ -16,11 +16,11 @@ jobs:
         with:
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
           repository: ${{ github.repository }}
-          retain_day: 0           # 不按天保留
-          keep_minimum_runs: 1   # 只留最新一条记录
+          retain_day: 0
+          keep_minimum_runs: 1
 
   run-private-script:
-    needs: cleanup               # ← 等清理完毕再执行
+    needs: cleanup
     runs-on: ubuntu-latest
 
     steps:
@@ -41,6 +41,7 @@ jobs:
 
       - name: Install dependencies
         run: |
+          pip install requests seleniumbase
           if [ -f private/requirements.txt ]; then
             pip install -r private/requirements.txt
           fi
