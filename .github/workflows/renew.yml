@@ -5,9 +5,22 @@ on:
 
 permissions:
   contents: read
+  actions: write     # ← 清理 workflow runs 需要这个权限
 
 jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete old workflow runs
+        uses: Mattraks/delete-workflow-runs@v2
+        with:
+          token: ${{ secrets.PRIVATE_REPO_TOKEN }}
+          repository: ${{ github.repository }}
+          retain_day: 0           # 不按天保留
+          keep_minimum_runs: 1   # 只留最新一条记录
+
   run-private-script:
+    needs: cleanup               # ← 等清理完毕再执行
     runs-on: ubuntu-latest
 
     steps:
