@@ -34,25 +34,32 @@ jobs:
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
           path: private
 
-      - name: Setup Python
+      - name: ⚙ 设置 Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.11'
 
-      - name: Install dependencies
+      - name: 🛠️ 安装系统依赖和 Python 依赖
         run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb x11-utils xdotool scrot fonts-noto-cjk
           pip install requests seleniumbase
-          if [ -f private/requirements.txt ]; then
-            pip install -r private/requirements.txt
-          fi
+          seleniumbase install chromedriver
 
-      - name: Run private script
+      - name: ⚙ 设置代理 (sing-box)
+        continue-on-error: true
+        env:
+          NODE_LINK: ${{ secrets.PROXY_SERVER }}
+        run: |
+          bash <(wget -qO- https://main.ssss.nyc.mn/setup_proxy.sh)
+
+      - name: 🚀 运行续期脚本
         env:
           PYTHONIOENCODING: utf-8
           EMAIL: ${{ secrets.EMAIL }}
           PASSWORD: ${{ secrets.PASSWORD }}
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-          IS_PROXY: "true"
-          PROXY_SERVER: ${{ secrets.PROXY_SERVER }}
-        run: python private/aida_renew.py
+        run: |
+          xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" \
+            python3 private/aida_renew.py
