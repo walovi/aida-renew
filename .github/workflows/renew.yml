@@ -1,0 +1,117 @@
+name: FreezeHost-Renew
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 18 * * *'   # 北京时间每天凌晨 2 点
+
+jobs:
+  renew:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: 📥 拉取私库脚本
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/Freeze-Renew-Private
+          token: ${{ secrets.PRIVATE_REPO_TOKEN }}
+          path: private
+
+      - name: 📂 复制脚本到工作目录
+        run: cp private/freeze_renew.py freeze_renew.py
+
+      - name: 🐍 安装 Python 和依赖
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 🐍 安装依赖
+        run: pip install requests
+
+      - name: ⚙️ 设置代理
+        if: ${{ secrets.PROXY_URL != '' }}
+        env:
+          PROXY_URL: ${{ secrets.PROXY_URL }}
+        run: |
+          echo "检测代理格式..."
+
+          if [[ "$PROXY_URL" =~ ^(http|https|socks5):// ]]; then
+            echo "识别为普通代理: $PROXY_URL"
+            echo "HTTP_PROXY=$PROXY_URL" >> $GITHUB_ENV
+            echo "HTTPS_PROXY=$PROXY_URL" >> $GITHUB_ENV
+            echo "ALL_PROXY=$PROXY_URL" >> $GITHUB_ENV
+
+          elif [[ "$PROXY_URL" =~ ^(ss|vmess|vless|trojan|hysteria2|tuic):// ]]; then
+            echo "识别为节点链接，使用 sing-box 转本地代理"
+
+            sudo apt-get update
+            sudo apt-get install -y wget unzip jq
+
+            SB_VERSION=$(curl -s https://api.github.com/repos/SagerNet/sing-box/releases/latest | jq -r .tag_name | sed 's/^v//')
+            echo "sing-box 版本: $SB_VERSION"
+
+            wget -q "https://github.com/SagerNet/sing-box/releases/download/v${SB_VERSION}/sing-box-${SB_VERSION}-linux-amd64.tar.gz"
+            tar -xzf "sing-box-${SB_VERSION}-linux-amd64.tar.gz"
+            mv "sing-box-${SB_VERSION}-linux-amd64/sing-box" ./sing-box
+            chmod +x ./sing-box
+
+            cat > proxy-config.json <<EOF
+          {
+            "log": {
+              "level": "info"
+            },
+            "inbounds": [
+              {
+                "type": "mixed",
+                "listen": "127.0.0.1",
+                "listen_port": 7890
+              }
+            ],
+            "outbounds": [
+              {
+                "type": "selector",
+                "tag": "select",
+                "outbounds": ["node"]
+              },
+              {
+                "type": "urltest",
+                "tag": "auto",
+                "outbounds": ["node"],
+                "url": "https://www.gstatic.com/generate_204"
+              },
+              {
+                "type": "direct",
+                "tag": "direct"
+              }
+            ]
+          }
+          EOF
+
+            echo "$PROXY_URL" > node.txt
+
+            bash <(wget -qO- https://main.ssss.nyc.mn/setup_proxy.sh) || true
+
+            echo "HTTP_PROXY=http://127.0.0.1:7890" >> $GITHUB_ENV
+            echo "HTTPS_PROXY=http://127.0.0.1:7890" >> $GITHUB_ENV
+            echo "ALL_PROXY=socks5://127.0.0.1:7890" >> $GITHUB_ENV
+
+          else
+            echo "不支持的代理格式: $PROXY_URL"
+            exit 1
+          fi
+
+      - name: 🌐 测试代理
+        if: ${{ secrets.PROXY_URL != '' }}
+        run: |
+          echo "当前出口 IP："
+          curl -s https://api.ipify.org && echo
+
+      - name: 🔄 执行自动续期
+        env:
+          FREEZE_TOKEN: ${{ secrets.FREEZE_TOKEN }}
+          TG_BOT: ${{ secrets.TG_BOT }}
+          HTTP_PROXY: ${{ env.HTTP_PROXY }}
+          HTTPS_PROXY: ${{ env.HTTPS_PROXY }}
+          ALL_PROXY: ${{ env.ALL_PROXY }}
+        run: python3 freeze_renew.py
